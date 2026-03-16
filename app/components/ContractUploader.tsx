@@ -97,6 +97,7 @@ function ClauseCard({ clause }: { clause: Clause }) {
 
 export default function ContractUploader() {
   const [preview, setPreview] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
   const [result, setResult] = useState<ContractData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,28 +105,40 @@ export default function ContractUploader() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const processFile = useCallback(async (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      setError("画像ファイルを選択してください");
+    const isImage = file.type.startsWith("image/");
+    const isPdf = file.type === "application/pdf";
+    if (!isImage && !isPdf) {
+      setError("画像またはPDFファイルを選択してください");
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setError("ファイルサイズは10MB以下にしてください");
+    if (file.size > 20 * 1024 * 1024) {
+      setError("ファイルサイズは20MB以下にしてください");
       return;
     }
 
     setError(null);
     setResult(null);
-    setPreview(URL.createObjectURL(file));
+    setFileName(file.name);
+
+    if (isImage) {
+      setPreview(URL.createObjectURL(file));
+    } else {
+      setPreview(null); // PDFはプレビューなし
+    }
 
     const reader = new FileReader();
     reader.onload = async () => {
       const base64 = (reader.result as string).split(",")[1];
       setLoading(true);
       try {
+        const body = isPdf
+          ? { image: base64, mimeType: "application/pdf" }
+          : { image: base64, mimeType: file.type };
+
         const res = await fetch("/api/check", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: base64, mimeType: file.type }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -182,14 +195,13 @@ export default function ContractUploader() {
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
-          capture="environment"
+          accept="image/*,application/pdf"
           className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) processFile(f); }}
         />
         <div className="text-4xl mb-4">📋</div>
-        <p className="text-gray-300 font-medium mb-1">契約書の画像をドロップ or タップして撮影</p>
-        <p className="text-gray-500 text-xs">PNG / JPEG / WebP — 10MB以下</p>
+        <p className="text-gray-300 font-medium mb-1">契約書のPDFまたは画像をドロップ or 選択</p>
+        <p className="text-gray-500 text-xs">PDF / PNG / JPEG / WebP — 20MB以下</p>
       </div>
 
       {/* Loading */}
@@ -216,10 +228,18 @@ export default function ContractUploader() {
           {/* Overview */}
           <div className="grid md:grid-cols-2 gap-6">
             {/* Left: preview */}
-            {preview && (
+            {(preview || fileName) && (
               <div className="rounded-xl overflow-hidden border border-gray-800 max-h-[500px] overflow-y-auto">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={preview} alt="契約書" className="w-full" />
+                {preview ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={preview} alt="契約書" className="w-full" />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-64 bg-gray-900">
+                    <div className="text-5xl mb-3">📄</div>
+                    <p className="text-gray-400 text-sm">{fileName}</p>
+                    <p className="text-gray-600 text-xs mt-1">PDF アップロード済み</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -339,7 +359,7 @@ export default function ContractUploader() {
 
           {/* Reset */}
           <button
-            onClick={() => { setPreview(null); setResult(null); setError(null); }}
+            onClick={() => { setPreview(null); setFileName(null); setResult(null); setError(null); }}
             className="w-full py-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition-colors"
           >
             別の契約書をチェック

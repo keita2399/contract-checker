@@ -85,10 +85,17 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { image, mimeType } = await req.json();
+    const { image, mimeType, pages } = await req.json();
     if (!image || !mimeType) {
       return NextResponse.json({ error: "image and mimeType are required" }, { status: 400 });
     }
+
+    // Build parts: text prompt + file data (supports multiple pages for PDF)
+    const dataParts = pages
+      ? (pages as string[]).map((pageData: string, i: number) => ({
+          inline_data: { mime_type: "image/png", data: pageData },
+        }))
+      : [{ inline_data: { mime_type: mimeType, data: image } }];
 
     const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
       method: "POST",
@@ -97,7 +104,7 @@ export async function POST(req: NextRequest) {
         contents: [{
           parts: [
             { text: SYSTEM_PROMPT },
-            { inline_data: { mime_type: mimeType, data: image } },
+            ...dataParts,
           ],
         }],
         generationConfig: {
