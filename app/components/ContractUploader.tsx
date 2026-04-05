@@ -61,6 +61,23 @@ function RiskMeter({ score }: { score: number }) {
   );
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      className="shrink-0 text-xs px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-green-400 transition-colors cursor-pointer"
+    >
+      {copied ? "✓ コピー済" : "📋 コピー"}
+    </button>
+  );
+}
+
 function ClauseCard({ clause }: { clause: Clause }) {
   const s = RISK_STYLES[clause.risk_level];
   const [open, setOpen] = useState(clause.risk_level === "HIGH");
@@ -85,7 +102,10 @@ function ClauseCard({ clause }: { clause: Clause }) {
             <p className="text-sm text-gray-300 leading-relaxed">{clause.issue}</p>
           </div>
           <div>
-            <div className="text-xs font-bold text-green-400 mb-1">修正案</div>
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-xs font-bold text-green-400">修正案</div>
+              <CopyButton text={clause.recommendation} />
+            </div>
             <p className="text-sm text-gray-300 leading-relaxed">{clause.recommendation}</p>
           </div>
           <div className="text-xs text-gray-500">カテゴリ: {clause.category}</div>
@@ -225,6 +245,26 @@ export default function ContractUploader() {
       {/* Result */}
       {result && (
         <div className="mt-8 space-y-6">
+
+          {/* 最危険条項サマリー */}
+          {result.clauses.filter(c => c.risk_level === "HIGH").length > 0 && (() => {
+            const top = result.clauses.find(c => c.risk_level === "HIGH")!;
+            return (
+              <div className="p-5 rounded-xl bg-red-500/10 border border-red-500/40">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-lg">🚨</span>
+                  <span className="text-sm font-bold text-red-400">最も注意すべき条項</span>
+                </div>
+                <div className="text-sm font-mono text-gray-400 mb-1">{top.article}「{top.title}」</div>
+                <p className="text-sm text-gray-300 mb-3 leading-relaxed">{top.issue}</p>
+                <div className="flex items-start justify-between gap-3 p-3 rounded-lg bg-gray-900/60">
+                  <p className="text-sm text-green-300 leading-relaxed flex-1">{top.recommendation}</p>
+                  <CopyButton text={top.recommendation} />
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Overview */}
           <div className="grid md:grid-cols-2 gap-6">
             {/* Left: preview */}
