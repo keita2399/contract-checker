@@ -108,7 +108,8 @@ export async function POST(req: NextRequest) {
       new HumanMessage({ content: imageContent }),
     ]);
 
-    const text = typeof response.content === "string" ? response.content : String(response.content);
+    const raw = typeof response.content === "string" ? response.content : String(response.content);
+    const text = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
 
     logUsage({
       project: "contract-checker",
@@ -117,10 +118,17 @@ export async function POST(req: NextRequest) {
       outputTokens: response.usage_metadata?.output_tokens ?? 0,
     });
 
-    const contractData = JSON.parse(text);
+    let contractData;
+    try {
+      contractData = JSON.parse(text);
+    } catch {
+      console.error("JSON parse error. Raw response:", raw);
+      return NextResponse.json({ error: "AIの応答をJSONとして解析できませんでした", detail: raw.slice(0, 500) }, { status: 500 });
+    }
     return NextResponse.json(contractData);
   } catch (error) {
-    console.error("Check error:", error);
-    return NextResponse.json({ error: "Failed to process contract", detail: String(error) }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Check error:", message);
+    return NextResponse.json({ error: "Failed to process contract", detail: message }, { status: 500 });
   }
 }
